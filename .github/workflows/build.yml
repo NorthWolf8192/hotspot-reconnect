@@ -39,7 +39,7 @@ jobs:
           retention-days: 30
 
   release:
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -48,9 +48,21 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: hotspot-reconnect-windows
-      - name: Attach Windows package to release
+      - name: Publish initial release or attach a requested release build
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$RELEASE_TAG" HotspotReconnect-win.zip
+          INITIAL_RELEASE_TAG: v1.0.0
+          BUILD_COMMIT: ${{ github.sha }}
+        run: |
+          if [ -n "$RELEASE_TAG" ]; then
+            gh release upload "$RELEASE_TAG" HotspotReconnect-win.zip
+          elif gh release view "$INITIAL_RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Initial release already exists; keeping its original assets."
+          else
+            gh release create "$INITIAL_RELEASE_TAG" HotspotReconnect-win.zip \
+              --target "$BUILD_COMMIT" \
+              --title "Hotspot Reconnect v1.0.0" \
+              --notes "首次公开版本。电脑唤醒后等待 5 秒，仅检查一次手机热点连接；原生 Windows 11 云母界面与托盘菜单，深浅色跟随系统。解压 HotspotReconnect-win.zip 后运行 HotspotReconnect.exe。源码和原创图标采用 MIT 许可证。"
+          fi
